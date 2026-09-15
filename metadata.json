@@ -1,0 +1,6 @@
+{
+  "name": "FinNews AI – Financial News Simplifier",
+  "description": "AI-powered financial news platform that fetches the latest financial and stock-market news and converts complex articles into simple, beginner-friendly summaries.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
