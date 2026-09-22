@@ -116,8 +116,7 @@ export const MarketOverview: React.FC<MarketOverviewProps> = React.memo(({
                     <ArrowDownRight className="w-3 h-3 stroke-[3]" />
                   )}
                   <span>
-                    {isUp ? "+" : ""}
-                    {idx.changePercent.toFixed(2)}%
+                    {isUp ? "+" : "-"}{Math.abs(idx.changePercent).toFixed(2)}%
                   </span>
                 </div>
               </div>

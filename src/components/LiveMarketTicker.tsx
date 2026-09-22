@@ -94,8 +94,7 @@ export const LiveMarketTicker: React.FC<LiveMarketTickerProps> = React.memo(({
                     ) : (
                       <ArrowDownRight className="w-3 h-3 stroke-[3]" />
                     )}
-                    {isUp ? "+" : ""}
-                    {item.changePercent.toFixed(2)}%
+                    {isUp ? "+" : "-"}{Math.abs(item.changePercent).toFixed(2)}%
                   </span>
                 </div>
               );

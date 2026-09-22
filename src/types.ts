@@ -62,11 +62,41 @@ export interface SectorPerformance {
   direction: "up" | "down";
 }
 
+export interface LiveMarketData {
+  symbol: string;
+  name: string;
+  query: string;
+  value: number;
+  valueFormatted: string;
+  change: number;
+  changePercent: number;
+  direction: "up" | "down" | "flat";
+  currency: string;
+  unit?: string;
+  ratesBreakdown?: {
+    gold24k_10g?: string;
+    gold22k_10g?: string;
+    gold18k_10g?: string;
+    goldSpotUsdOz?: string;
+    silver1kg?: string;
+  };
+  lastUpdated: string;
+  source: string;
+  dayRange?: { low: number; high: number };
+  note?: string;
+}
+
+export interface ChatCitation {
+  title: string;
+  url: string;
+}
+
 export interface ChatMessage {
   id?: string;
   role: "user" | "assistant";
   content: string;
   timestamp?: string;
+  citations?: ChatCitation[];
 }
 
 export type LanguageCode = "en" | "hi" | "mr";

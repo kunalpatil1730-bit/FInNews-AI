@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   ShieldAlert,
+  Bot,
 } from "lucide-react";
 import { NavTab, LanguageCode } from "../types";
 import { FinNewsLogo } from "./FinNewsLogo";
@@ -27,6 +28,7 @@ interface HeaderProps {
   onOpenSimplifyModal: () => void;
   onOpenImageModal: () => void;
   onOpenGlossary: () => void;
+  onOpenAskAi: () => void;
   onSearchSubmit: (query: string) => void;
 }
 
@@ -41,6 +43,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   onOpenSimplifyModal,
   onOpenImageModal,
   onOpenGlossary,
+  onOpenAskAi,
   onSearchSubmit,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -65,16 +68,16 @@ export const Header: React.FC<HeaderProps> = React.memo(({
 
   return (
     <header className="sticky top-0 z-40 glass-header transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16 sm:h-20 gap-2 sm:gap-4">
           
-          {/* Brand Logo with 3D Graphics */}
-          <div id="brand-logo-button">
+          {/* Brand Logo */}
+          <div id="brand-logo-button" className="shrink-0 flex items-center">
             <FinNewsLogo size="md" showSubtitle onClick={() => onSelectTab("home")} />
           </div>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1 lg:gap-1.5 p-1 rounded-2xl glass-panel">
+          <nav className="hidden lg:flex items-center gap-1 xl:gap-1.5 p-1 rounded-2xl glass-panel shrink-0">
             {navItems.map((item) => {
               const active = currentTab === item.id;
               return (
@@ -82,7 +85,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
                   key={item.id}
                   id={`nav-${item.id}`}
                   onClick={() => onSelectTab(item.id)}
-                  className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all relative ${
+                  className={`px-3 xl:px-4 py-2 rounded-xl text-xs font-extrabold transition-all relative ${
                     active
                       ? "bg-purple-600 text-white dark:bg-purple-900/80 dark:text-purple-100 shadow-md shadow-purple-500/20 border border-purple-400/40"
                       : "text-slate-900 dark:text-slate-100 hover:text-purple-700 hover:bg-white/60 dark:hover:bg-slate-800/60"
@@ -100,7 +103,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
           </nav>
 
           {/* Right Action Tools */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             
             {/* Search Toggle */}
             <div className="relative">
@@ -184,6 +187,17 @@ export const Header: React.FC<HeaderProps> = React.memo(({
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
+            {/* Ask AI Button */}
+            <button
+              id="header-ask-ai-button"
+              onClick={onOpenAskAi}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-700 hover:to-indigo-700 text-white text-xs font-black shadow-lg shadow-purple-500/20 transition-all active:scale-95 border border-white/30"
+              title="Ask AI Any Question (GPT & Gemini Assistant)"
+            >
+              <Bot className="w-4 h-4 animate-pulse" />
+              <span>Ask Anything</span>
+            </button>
+
             {/* Fetch & Simplify Quick Action Button */}
             <button
               id="header-fetch-simplify-button"
@@ -231,6 +245,17 @@ export const Header: React.FC<HeaderProps> = React.memo(({
             ))}
 
             <div className="pt-2 border-t border-slate-300/40 dark:border-slate-800 flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  onOpenAskAi();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 text-white text-sm font-black shadow-md"
+              >
+                <Bot className="w-4 h-4 animate-bounce" />
+                <span>Ask Anything</span>
+              </button>
+
               <button
                 onClick={() => {
                   onOpenSimplifyModal();

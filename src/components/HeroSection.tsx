@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Search, Sparkles, ArrowRight, BookOpen, ShieldCheck, Zap, Globe2, TrendingUp } from "lucide-react";
+import { Search, Sparkles, ArrowRight, BookOpen, ShieldCheck, Zap, Globe2, TrendingUp, Bot } from "lucide-react";
 
 interface HeroSectionProps {
   onSearch: (query: string) => void;
   onOpenSimplifyModal: () => void;
   onExploreLatest: () => void;
+  onOpenAskAi?: () => void;
   isDarkMode: boolean;
 }
 
@@ -12,6 +13,7 @@ export const HeroSection: React.FC<HeroSectionProps> = React.memo(({
   onSearch,
   onOpenSimplifyModal,
   onExploreLatest,
+  onOpenAskAi,
   isDarkMode,
 }) => {
   const [query, setQuery] = useState("");
@@ -94,6 +96,18 @@ export const HeroSection: React.FC<HeroSectionProps> = React.memo(({
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mb-8">
+            {onOpenAskAi && (
+              <button
+                type="button"
+                id="hero-ask-ai-action"
+                onClick={onOpenAskAi}
+                className="px-6 py-3 rounded-2xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-700 hover:to-indigo-700 text-white font-black text-xs sm:text-sm shadow-xl shadow-purple-500/30 flex items-center gap-2 transition-all active:scale-95 border border-white/30 hover:scale-105"
+              >
+                <Bot className="w-4.5 h-4.5 animate-pulse text-white" />
+                <span>Ask Anything</span>
+              </button>
+            )}
+
             <button
               type="button"
               id="hero-fetch-simplify-action"

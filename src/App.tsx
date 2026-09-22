@@ -13,6 +13,7 @@ import {
   Filter,
   CheckCircle2,
   X,
+  Bot,
 } from "lucide-react";
 import {
   Article,
@@ -20,6 +21,7 @@ import {
   SectorPerformance,
   NavTab,
   LanguageCode,
+  LiveMarketData,
 } from "./types";
 import {
   fetchMarkets,
@@ -39,6 +41,7 @@ import { ArticleModal } from "./components/ArticleModal";
 import { SimplifyCustomModal } from "./components/SimplifyCustomModal";
 import { ImageAnalysisModal } from "./components/ImageAnalysisModal";
 import { GlossaryModal } from "./components/GlossaryModal";
+import { AskAiModal } from "./components/AskAiModal";
 import { MarketsView } from "./components/MarketsView";
 import { SavedArticlesView } from "./components/SavedArticlesView";
 import { AboutView } from "./components/AboutView";
@@ -87,6 +90,7 @@ export default function App() {
   // Search State
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [liveMarketData, setLiveMarketData] = useState<LiveMarketData | null>(null);
 
   // Loading & Error States
   const [newsLoading, setNewsLoading] = useState<boolean>(true);
@@ -97,6 +101,7 @@ export default function App() {
   const [simplifyModalOpen, setSimplifyModalOpen] = useState<boolean>(false);
   const [imageModalOpen, setImageModalOpen] = useState<boolean>(false);
   const [glossaryModalOpen, setGlossaryModalOpen] = useState<boolean>(false);
+  const [askAiModalOpen, setAskAiModalOpen] = useState<boolean>(false);
 
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -157,8 +162,10 @@ export default function App() {
         setIsSearching(true);
         const data = await searchNews(searchQuery.trim());
         setArticles(data.articles || []);
+        setLiveMarketData(data.liveMarketData || null);
       } else {
         setIsSearching(false);
+        setLiveMarketData(null);
         const data = await fetchLatestNews(selectedCategory, selectedInterests);
         setArticles(data.articles || []);
       }
@@ -222,6 +229,7 @@ export default function App() {
 
   const handleClearSearch = useCallback(() => {
     setSearchQuery("");
+    setLiveMarketData(null);
   }, []);
 
   return (
@@ -261,6 +269,7 @@ export default function App() {
         onOpenSimplifyModal={() => setSimplifyModalOpen(true)}
         onOpenImageModal={() => setImageModalOpen(true)}
         onOpenGlossary={() => setGlossaryModalOpen(true)}
+        onOpenAskAi={() => setAskAiModalOpen(true)}
         onSearchSubmit={handleSearchSubmit}
       />
 
@@ -281,6 +290,7 @@ export default function App() {
                 setSearchQuery("");
                 setCurrentTab("latest");
               }}
+              onOpenAskAi={() => setAskAiModalOpen(true)}
               isDarkMode={isDarkMode}
             />
 
@@ -309,6 +319,76 @@ export default function App() {
                   >
                     Clear Search
                   </button>
+                </div>
+              )}
+
+              {/* Live Financial Data Highlight Card */}
+              {searchQuery && liveMarketData && !newsLoading && (
+                <div className="mb-6 p-5 rounded-2xl bg-gradient-to-br from-amber-500/10 via-yellow-500/5 to-amber-500/10 border border-amber-500/30 dark:border-amber-500/40 shadow-lg backdrop-blur-md">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3 pb-3 border-b border-amber-500/20">
+                    <div className="flex items-center gap-3">
+                      <span className="px-3 py-1 rounded-xl bg-amber-500 text-white font-extrabold text-xs shadow-md animate-pulse tracking-wide">
+                        ⚡ LIVE MARKET DATA
+                      </span>
+                      <div>
+                        <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                          {liveMarketData.name}
+                          <span className="text-xs px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono">
+                            {liveMarketData.symbol}
+                          </span>
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          Source: {liveMarketData.source} • Updated at {liveMarketData.lastUpdated}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                        {liveMarketData.valueFormatted}
+                      </div>
+                      <div className={`text-xs font-bold flex items-center justify-end gap-1 ${liveMarketData.direction === "up" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                        {liveMarketData.direction === "up" ? "▲ +" : "▼ "}
+                        {liveMarketData.change} ({liveMarketData.changePercent}%)
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rates Breakdown Grid for Gold / Commodities */}
+                  {liveMarketData.ratesBreakdown && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                      {liveMarketData.ratesBreakdown.gold24k_10g && (
+                        <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-amber-200 dark:border-slate-800 shadow-2xs">
+                          <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">24K Pure Gold (10g)</div>
+                          <div className="text-base font-black text-amber-600 dark:text-amber-400">{liveMarketData.ratesBreakdown.gold24k_10g}</div>
+                        </div>
+                      )}
+                      {liveMarketData.ratesBreakdown.gold22k_10g && (
+                        <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-amber-200 dark:border-slate-800 shadow-2xs">
+                          <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">22K Jewelry Gold (10g)</div>
+                          <div className="text-base font-black text-amber-600 dark:text-amber-400">{liveMarketData.ratesBreakdown.gold22k_10g}</div>
+                        </div>
+                      )}
+                      {liveMarketData.ratesBreakdown.gold18k_10g && (
+                        <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-amber-200 dark:border-slate-800 shadow-2xs">
+                          <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">18K Hallmarked (10g)</div>
+                          <div className="text-base font-black text-slate-700 dark:text-slate-300">{liveMarketData.ratesBreakdown.gold18k_10g}</div>
+                        </div>
+                      )}
+                      {liveMarketData.ratesBreakdown.goldSpotUsdOz && (
+                        <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-amber-200 dark:border-slate-800 shadow-2xs">
+                          <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Global Spot Gold</div>
+                          <div className="text-base font-black text-blue-600 dark:text-blue-400">{liveMarketData.ratesBreakdown.goldSpotUsdOz}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {liveMarketData.note && (
+                    <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 mt-3 pt-2 border-t border-amber-500/10">
+                      💡 <strong>Note:</strong> {liveMarketData.note}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -527,6 +607,31 @@ export default function App() {
         onClose={() => setGlossaryModalOpen(false)}
         isDarkMode={isDarkMode}
       />
+
+      {/* Universal Ask AI (GPT & Gemini Assistant) Modal */}
+      <AskAiModal
+        isOpen={askAiModalOpen}
+        onClose={() => setAskAiModalOpen(false)}
+        currentLanguage={currentLanguage}
+        onChangeLanguage={setCurrentLanguage}
+        initialArticleContext={activeArticle}
+      />
+
+      {/* Floating Ask AI Launcher Button */}
+      <button
+        id="floating-ask-ai-launcher-button"
+        onClick={() => setAskAiModalOpen(true)}
+        className="fixed bottom-6 right-6 z-40 px-4 py-3 rounded-full bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 text-white font-black text-xs sm:text-sm shadow-2xl shadow-purple-500/50 flex items-center gap-2 border border-white/40 hover:scale-110 active:scale-95 transition-all group"
+        title="Ask AI Assistant (GPT & Gemini Mode)"
+      >
+        <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+          <Bot className="w-4 h-4 text-white animate-pulse" />
+        </div>
+        <span>Ask Anything</span>
+        <span className="px-1.5 py-0.5 text-[9px] font-black rounded-full bg-pink-500/80 text-white uppercase tracking-wider">
+          GPT
+        </span>
+      </button>
 
       {/* Global Footer */}
       <Footer

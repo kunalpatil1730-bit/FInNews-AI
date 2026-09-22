@@ -1,78 +1,103 @@
 import random
 import datetime
+import json
+import urllib.request
 from typing import Dict, Any, List
 
-BASE_MARKETS: Dict[str, Dict[str, Any]] = {
+def fetch_yahoo_symbol(symbol: str) -> Dict[str, Any]:
+    try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            meta = data.get("chart", {}).get("result", [{}])[0].get("meta", {})
+            price = meta.get("regularMarketPrice")
+            if price is not None:
+                prev_close = meta.get("chartPreviousClose", meta.get("previousClose", price))
+                change = price - prev_close
+                change_pct = (change / prev_close * 100) if prev_close else 0.0
+                return {
+                    "price": price,
+                    "change": change,
+                    "changePercent": change_pct,
+                    "high": meta.get("regularMarketDayHigh", price * 1.005),
+                    "low": meta.get("regularMarketDayLow", price * 0.995)
+                }
+    except Exception:
+        pass
+    return {}
+
+BASE_MARKETS_FALLBACK: Dict[str, Dict[str, Any]] = {
     "nifty": {
         "symbol": "NIFTY 50",
         "name": "NSE Nifty 50 Index (India)",
-        "value": 24892.40,
+        "value": 25182.40,
         "change": 142.30,
-        "changePercent": 0.58,
+        "changePercent": 0.57,
         "direction": "up",
         "currency": "INR",
-        "sparkline": [24720, 24760, 24740, 24810, 24790, 24850, 24892.4],
-        "dayRange": {"low": 24710.15, "high": 24925.80},
+        "sparkline": [25010, 25060, 25110, 25150, 25182.40],
+        "dayRange": {"low": 24980.15, "high": 25220.80},
         "volume": "284.5M",
     },
     "sensex": {
         "symbol": "SENSEX",
         "name": "BSE S&P Sensex (India)",
-        "value": 81785.56,
+        "value": 82450.60,
         "change": 421.20,
-        "changePercent": 0.52,
+        "changePercent": 0.51,
         "direction": "up",
         "currency": "INR",
-        "sparkline": [81200, 81350, 81290, 81500, 81620, 81710, 81785.56],
-        "dayRange": {"low": 81150.0, "high": 81920.4},
+        "sparkline": [81900, 82100, 82250, 82380, 82450.60],
+        "dayRange": {"low": 81850.0, "high": 82600.4},
         "volume": "18.2M",
     },
     "nasdaq": {
         "symbol": "NASDAQ",
         "name": "Nasdaq Composite (US)",
-        "value": 17882.65,
+        "value": 18420.15,
         "change": -112.45,
-        "changePercent": -0.62,
+        "changePercent": -0.61,
         "direction": "down",
         "currency": "USD",
-        "sparkline": [18010, 17980, 17920, 17850, 17890, 17840, 17882.65],
-        "dayRange": {"low": 17810.2, "high": 18040.5},
+        "sparkline": [18550, 18510, 18480, 18420.15],
+        "dayRange": {"low": 18380.2, "high": 18600.5},
         "volume": "4.8B",
     },
     "sp500": {
         "symbol": "S&P 500",
         "name": "Standard & Poor's 500 (US)",
-        "value": 5648.40,
+        "value": 5680.20,
         "change": -14.20,
         "changePercent": -0.25,
         "direction": "down",
         "currency": "USD",
-        "sparkline": [5670, 5665, 5650, 5635, 5642, 5638, 5648.4],
-        "dayRange": {"low": 5630.1, "high": 5682.0},
+        "sparkline": [5700, 5690, 5685, 5680.20],
+        "dayRange": {"low": 5665.1, "high": 5710.0},
         "volume": "3.2B",
     },
     "gold": {
         "symbol": "Gold",
-        "name": "Gold Spot / 10g (Global & India)",
-        "value": 73840.00,
+        "name": "Gold Spot 24K / 10g (India & Global)",
+        "value": 86450.00,
         "change": 380.00,
-        "changePercent": 0.52,
+        "changePercent": 0.44,
         "direction": "up",
         "currency": "INR/10g",
-        "sparkline": [73300, 73420, 73380, 73550, 73680, 73750, 73840],
-        "dayRange": {"low": 73250, "high": 73920},
-        "volume": "12.4K lots",
+        "sparkline": [85900, 86100, 86250, 86450],
+        "dayRange": {"low": 85750, "high": 86620},
+        "volume": "14.2K lots",
     },
     "usdinr": {
         "symbol": "USD/INR",
         "name": "US Dollar to Indian Rupee",
-        "value": 83.94,
-        "change": 0.06,
-        "changePercent": 0.07,
+        "value": 86.42,
+        "change": 0.08,
+        "changePercent": 0.09,
         "direction": "up",
         "currency": "INR",
-        "sparkline": [83.85, 83.88, 83.91, 83.90, 83.92, 83.93, 83.94],
-        "dayRange": {"low": 83.82, "high": 83.98},
+        "sparkline": [86.30, 86.35, 86.38, 86.42],
+        "dayRange": {"low": 86.25, "high": 86.48},
     },
 }
 
@@ -92,12 +117,42 @@ class MarketService:
         now_str = datetime.datetime.now().strftime("%H:%M")
         updated_indices = []
 
-        for key, data in BASE_MARKETS.items():
-            drift = (random.random() - 0.5) * 0.04
-            sim_val = round(data["value"] * (1 + drift / 100), 2)
-            item = dict(data)
-            item["value"] = sim_val
+        # Attempt live fetch
+        nifty_q = fetch_yahoo_symbol("^NSEI")
+        sensex_q = fetch_yahoo_symbol("^BSESN")
+        nasdaq_q = fetch_yahoo_symbol("^IXIC")
+        sp500_q = fetch_yahoo_symbol("^GSPC")
+        gold_q = fetch_yahoo_symbol("GC=F")
+        usdinr_q = fetch_yahoo_symbol("INR=X")
+
+        usd_inr = usdinr_q.get("price", 86.42)
+        gold_usd = gold_q.get("price", 2912.50)
+        gold_24k = round((gold_usd / 31.1034768) * 10 * usd_inr * 1.155) if gold_usd else 86450
+
+        quotes = {
+            "nifty": nifty_q,
+            "sensex": sensex_q,
+            "nasdaq": nasdaq_q,
+            "sp500": sp500_q,
+            "usdinr": usdinr_q,
+        }
+
+        for key, base in BASE_MARKETS_FALLBACK.items():
+            q = quotes.get(key, {})
+            item = dict(base)
             item["lastUpdated"] = now_str
+            if key == "gold" and gold_24k:
+                item["value"] = gold_24k
+                if gold_q.get("change"):
+                    item["change"] = round((gold_q["change"] / 31.1034768) * 10 * usd_inr * 1.155)
+                    item["changePercent"] = round(gold_q.get("changePercent", 0.44), 2)
+                    item["direction"] = "up" if item["change"] >= 0 else "down"
+            elif q.get("price"):
+                item["value"] = round(q["price"], 2)
+                item["change"] = round(q.get("change", item["change"]), 2)
+                item["changePercent"] = round(q.get("changePercent", item["changePercent"]), 2)
+                item["direction"] = "up" if item["change"] >= 0 else "down"
+
             updated_indices.append(item)
 
         return {
@@ -107,3 +162,4 @@ class MarketService:
         }
 
 market_service = MarketService()
+

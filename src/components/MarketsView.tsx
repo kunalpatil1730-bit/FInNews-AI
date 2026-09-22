@@ -148,8 +148,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
                       : "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
                   }`}
                 >
-                  {selectedIndex.change >= 0 ? "+" : ""}
-                  {selectedIndex.changePercent.toFixed(2)}%
+                  {selectedIndex.change >= 0 ? "+" : "-"}{Math.abs(selectedIndex.changePercent).toFixed(2)}%
                 </span>
               </div>
 
@@ -177,6 +176,34 @@ export const MarketsView: React.FC<MarketsViewProps> = ({
                   <span className="font-bold font-mono">{selectedIndex.lastUpdated}</span>
                 </div>
               </div>
+
+              {selectedIndex.symbol === "Gold" && (
+                <div className="mt-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                  <div className="text-[11px] font-extrabold text-amber-700 dark:text-amber-300 mb-2">
+                    🟡 Live Gold Rate Purity Breakdown (per 10g)
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-slate-800">
+                      <span className="text-slate-500 block text-[10px]">24K (99.9%)</span>
+                      <span className="font-black text-amber-600 dark:text-amber-400 text-xs">
+                        ₹{selectedIndex.value.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-slate-800">
+                      <span className="text-slate-500 block text-[10px]">22K (91.6%)</span>
+                      <span className="font-black text-amber-600 dark:text-amber-400 text-xs">
+                        ₹{Math.round(selectedIndex.value * (22 / 24)).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-slate-800">
+                      <span className="text-slate-500 block text-[10px]">18K (75.0%)</span>
+                      <span className="font-black text-slate-700 dark:text-slate-300 text-xs">
+                        ₹{Math.round(selectedIndex.value * (18 / 24)).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Chart */}

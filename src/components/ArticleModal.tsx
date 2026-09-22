@@ -20,9 +20,13 @@ import {
   RefreshCw,
   Copy,
   Check,
+  Square,
+  RotateCcw,
+  Trash2,
+  Search,
 } from "lucide-react";
-import { Article, SimplifiedAnalysis, LanguageCode, ChatMessage } from "../types";
-import { summarizeArticle, sendChatMessageApi } from "../services/api";
+import { Article, SimplifiedAnalysis, LanguageCode, ChatMessage, ChatCitation } from "../types";
+import { summarizeArticle, streamChatMessageApi } from "../services/api";
 
 interface ArticleModalProps {
   article: Article | null;
@@ -75,7 +79,7 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
           setChatMessages([
             {
               role: "assistant",
-              content: `Hello! I'm your FinNews AI Assistant. You're reading about **${article.title}**. Feel free to ask me anything — like *"Explain this like I'm 10"*, *"Will this change my bank interest?"*, or *"What does this mean for stocks?"*`,
+              content: `👋 Hello! I'm **Ask AI** (powered by Google Gemini with live Google Search grounding). You're currently viewing **"${article.title}"**, but you can ask me **ANY question on ANY topic**—general knowledge, current news, coding, math, or finance!`,
               timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
             },
           ]);
@@ -93,56 +97,108 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
     };
   }, [article, currentLang]);
 
-  // Handle Chat Submit
-  const handleSendChat = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || chatLoading) return;
+  const abortControllerRef = React.useRef<AbortController | null>(null);
 
-    const userText = chatInput.trim();
+  // Handle Chat Submit with SSE Streaming
+  const handleSendChat = async (textOverride?: string) => {
+    const query = (textOverride || chatInput).trim();
+    if (!query || chatLoading) return;
+
     setChatInput("");
-    const newMsgList: ChatMessage[] = [
-      ...chatMessages,
-      {
-        role: "user",
-        content: userText,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      },
-    ];
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: query,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    const newMsgList = [...chatMessages, userMsg];
     setChatMessages(newMsgList);
     setChatLoading(true);
 
-    try {
-      const res = await sendChatMessageApi(newMsgList, {
-        title: article?.title,
-        description: article?.description,
-        summary: analysis?.summary,
-      });
+    const assistantIdx = newMsgList.length;
+    const placeholderMsg: ChatMessage = {
+      role: "assistant",
+      content: "",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
 
-      setChatMessages([
-        ...newMsgList,
-        {
-          role: "assistant",
-          content: res.reply,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
-    } catch (err) {
-      setChatMessages([
-        ...newMsgList,
-        {
-          role: "assistant",
-          content: "Sorry, I couldn't process your question right now. Please try again in a moment.",
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
-    } finally {
-      setChatLoading(false);
-    }
+    setChatMessages([...newMsgList, placeholderMsg]);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    let accumulatedText = "";
+    let accumulatedCitations: ChatCitation[] = [];
+
+    await streamChatMessageApi({
+      messages: newMsgList,
+      language: currentLang,
+      signal: controller.signal,
+      onChunk: (textDelta, citations) => {
+        accumulatedText += textDelta;
+        if (citations) accumulatedCitations = citations;
+
+        setChatMessages((prev) => {
+          const arr = [...prev];
+          if (arr[assistantIdx]) {
+            arr[assistantIdx] = {
+              ...arr[assistantIdx],
+              content: accumulatedText,
+              citations: accumulatedCitations.length > 0 ? accumulatedCitations : undefined,
+            };
+          }
+          return arr;
+        });
+      },
+      onComplete: (fullText, citations) => {
+        setChatLoading(false);
+        abortControllerRef.current = null;
+        setChatMessages((prev) => {
+          const arr = [...prev];
+          if (arr[assistantIdx]) {
+            arr[assistantIdx] = {
+              ...arr[assistantIdx],
+              content: fullText || accumulatedText || "No response received.",
+              citations: citations || accumulatedCitations,
+            };
+          }
+          return arr;
+        });
+      },
+      onError: (errorMsg) => {
+        setChatLoading(false);
+        abortControllerRef.current = null;
+        setChatMessages((prev) => {
+          const arr = [...prev];
+          if (arr[assistantIdx]) {
+            arr[assistantIdx] = {
+              ...arr[assistantIdx],
+              content: `⚠️ **API Error**: ${errorMsg}`,
+            };
+          }
+          return arr;
+        });
+      },
+    });
   };
 
-  // Quick prompt buttons for chat
-  const handleQuickChatPrompt = (promptText: string) => {
-    setChatInput(promptText);
+  const handleStopChat = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setChatLoading(false);
+  };
+
+  const handleClearArticleChat = () => {
+    handleStopChat();
+    setChatMessages([
+      {
+        role: "assistant",
+        content: `Chat cleared! Ask AI is ready for your next question.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
   };
 
   const handleCopySummary = () => {
@@ -251,14 +307,15 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
             onClick={() => setActiveTab("chat")}
             className={`pb-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-1.5 ${
               activeTab === "chat"
-                ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                ? "border-pink-600 text-pink-600 dark:text-pink-400"
                 : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
             }`}
           >
-            <Bot className="w-4 h-4 text-indigo-500" />
-            <span>Ask AI About This Article</span>
-            <span className="px-1.5 py-0.2 rounded text-[10px] bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-bold">
-              Gemini
+            <Bot className="w-4 h-4 text-pink-500 animate-pulse" />
+            <span>Ask Anything</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-pink-100 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 font-extrabold flex items-center gap-1 border border-pink-300/40">
+              <Search className="w-3 h-3" />
+              Google Grounded
             </span>
           </button>
         </div>
@@ -578,7 +635,7 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
                       className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-semibold text-xs sm:text-sm hover:bg-indigo-100 transition-all"
                     >
                       <Bot className="w-4 h-4" />
-                      <span>Have questions? Ask AI</span>
+                      <span>Have questions? Ask Anything</span>
                     </button>
                   </div>
 
@@ -587,86 +644,165 @@ export const ArticleModal: React.FC<ArticleModalProps> = ({
             </>
           )}
 
-          {/* TAB 2: INTERACTIVE AI CHATBOT ABOUT THIS ARTICLE */}
+          {/* TAB 2: UNIVERSAL ASK AI ASSISTANT */}
           {activeTab === "chat" && (
             <div className="space-y-4">
               
-              {/* Quick sample prompt chips */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-semibold text-slate-500">Suggestions:</span>
-                {[
-                  "Explain this like I'm 10 years old",
-                  "Will this affect my loan EMI?",
-                  "Why did stocks react this way?",
-                  "What is the biggest risk here?",
-                ].map((sugg) => (
-                  <button
-                    key={sugg}
-                    type="button"
-                    onClick={() => handleQuickChatPrompt(sugg)}
-                    className="px-2.5 py-1 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 transition-colors"
-                  >
-                    {sugg}
-                  </button>
-                ))}
+              {/* Controls bar & quick prompt chips */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-500">Suggestions:</span>
+                  {[
+                    "🌍 How many countries are in the world?",
+                    "💡 Explain Inflation in 2 sentences",
+                    "💻 Write Python compound interest code",
+                    "📈 What is Nifty 50?",
+                  ].map((sugg) => (
+                    <button
+                      key={sugg}
+                      type="button"
+                      onClick={() => handleSendChat(sugg)}
+                      disabled={chatLoading}
+                      className="px-2.5 py-1 rounded-full text-xs font-semibold bg-pink-50 dark:bg-slate-800 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-slate-700 hover:bg-pink-600 hover:text-white transition-all disabled:opacity-50"
+                    >
+                      {sugg}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleClearArticleChat}
+                  className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-600 dark:text-slate-300 transition-all text-xs flex items-center gap-1 font-bold"
+                  title="Clear Chat History"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear</span>
+                </button>
               </div>
 
               {/* Chat Thread Messages */}
-              <div className="min-h-[300px] max-h-[380px] overflow-y-auto space-y-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                {chatMessages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex items-start gap-2.5 ${
-                      msg.role === "user" ? "flex-row-reverse" : "flex-row"
-                    }`}
-                  >
+              <div className="min-h-[320px] max-h-[420px] overflow-y-auto space-y-3 p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-inner">
+                {chatMessages.map((msg, idx) => {
+                  const isUser = msg.role === "user";
+                  return (
                     <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                        msg.role === "user"
-                          ? "bg-blue-600 text-white"
-                          : "bg-indigo-600 text-white"
+                      key={idx}
+                      className={`flex items-start gap-2.5 ${
+                        isUser ? "flex-row-reverse" : "flex-row"
                       }`}
                     >
-                      {msg.role === "user" ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                      <div
+                        className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                          isUser
+                            ? "bg-gradient-to-tr from-purple-600 to-indigo-600 text-white"
+                            : "bg-gradient-to-tr from-pink-600 to-purple-600 text-white"
+                        }`}
+                      >
+                        {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
+                      </div>
+
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs sm:text-sm leading-relaxed shadow-xs relative group ${
+                          isUser
+                            ? "bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 text-white rounded-tr-none"
+                            : "bg-white dark:bg-slate-800 border border-pink-100 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-tl-none whitespace-pre-wrap"
+                        }`}
+                      >
+                        <div>{msg.content || "Generating AI response..."}</div>
+
+                        {/* Citations / Web Sources */}
+                        {!isUser && msg.citations && msg.citations.length > 0 && (
+                          <div className="mt-2.5 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <span className="text-[10px] font-black uppercase text-pink-600 dark:text-pink-400 block mb-1 flex items-center gap-1">
+                              <Search className="w-3 h-3" /> Web Sources:
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {msg.citations.map((cit, cIdx) => (
+                                <a
+                                  key={cIdx}
+                                  href={cit.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-pink-50 dark:bg-slate-900 text-[10px] font-bold text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-slate-700 hover:bg-pink-600 hover:text-white transition-all"
+                                >
+                                  <span>[{cIdx + 1}] {cit.title}</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div
-                      className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed ${
-                        msg.role === "user"
-                          ? "bg-blue-600 text-white rounded-tr-none"
-                          : "bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-900 dark:text-white rounded-tl-none shadow-2xs whitespace-pre-wrap"
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {chatLoading && (
-                  <div className="flex items-center gap-2 text-xs text-slate-500 italic p-2">
-                    <Bot className="w-4 h-4 animate-spin text-indigo-500" />
-                    <span>FinNews AI is analyzing and thinking...</span>
+                  <div className="flex items-center gap-2 text-xs font-bold text-pink-600 dark:text-pink-400 p-2">
+                    <Sparkles className="w-4 h-4 animate-spin" />
+                    <span>Searching Google & Generating Answer...</span>
                   </div>
                 )}
               </div>
 
-              {/* Chat Input Box */}
-              <form onSubmit={handleSendChat} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Ask any question about this financial article or term..."
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  type="submit"
-                  disabled={!chatInput.trim() || chatLoading}
-                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all disabled:opacity-50"
+              {/* Chat Input & Controls Box */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  {chatLoading ? (
+                    <button
+                      type="button"
+                      onClick={handleStopChat}
+                      className="px-3 py-1 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs flex items-center gap-1 shadow-sm transition-all"
+                    >
+                      <Square className="w-3 h-3 fill-white" />
+                      <span>Stop Response</span>
+                    </button>
+                  ) : (
+                    chatMessages.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const lastUserIndex = [...chatMessages].reverse().findIndex((m) => m.role === "user");
+                          if (lastUserIndex !== -1) {
+                            const realIdx = chatMessages.length - 1 - lastUserIndex;
+                            handleSendChat(chatMessages[realIdx].content);
+                          }
+                        }}
+                        className="px-3 py-1 rounded-xl bg-pink-50 dark:bg-slate-800 hover:bg-pink-100 text-pink-700 dark:text-pink-300 font-bold text-xs flex items-center gap-1 border border-pink-200 dark:border-slate-700 transition-all"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Regenerate</span>
+                      </button>
+                    )
+                  )}
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendChat();
+                  }}
+                  className="flex items-center gap-2"
                 >
-                  <Send className="w-4 h-4" />
-                  <span className="hidden sm:inline">Send</span>
-                </button>
-              </form>
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Ask ANYTHING (General knowledge, coding, math, current news, stocks)..."
+                    disabled={chatLoading}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-pink-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-pink-500 font-medium text-slate-900 dark:text-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim() || chatLoading}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 hover:from-pink-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all disabled:opacity-50 shadow-sm shrink-0"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>Send</span>
+                  </button>
+                </form>
+              </div>
 
             </div>
           )}
