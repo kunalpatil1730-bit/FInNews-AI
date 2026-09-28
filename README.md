@@ -20,4 +20,6 @@ View your app in AI Studio: https://ai.studio/apps/d7fac728-61b8-41c8-935a-be92d
    `npm run dev`
 
    ## Documents
-[📄 BSFI FinNews AI Documentation](docs/BSFI-FinNews-AI_Documentation_KP.docx)
+### 📚 Documentation
+
+[📄 View BSFI FinNews AI Documentation](https://docs.google.com/gview?embedded=1&url=https://raw.githubusercontent.com/kunalpatil1730-bit/FInNews-AI/main/docs/BSFI-FinNews-AI_Documentation_KP.docx)
